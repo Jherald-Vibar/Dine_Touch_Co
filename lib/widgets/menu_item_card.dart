@@ -23,13 +23,14 @@ class MenuItemCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: () => _showDetail(context),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(10), // ← reduced from 14
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, // ← don't force expand
             children: [
-              // Emoji / image area
+              // Emoji / image area — shrunk to fit
               Container(
-                height: 96,
+                height: 80, // ← reduced from 96
                 decoration: BoxDecoration(
                   color: AppTheme.primaryLight,
                   borderRadius: BorderRadius.circular(10),
@@ -38,59 +39,63 @@ class MenuItemCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: Text(_foodEmoji(item.category),
-                      style: const TextStyle(fontSize: 40)),
+                      style: const TextStyle(fontSize: 34)), // ← reduced from 40
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 7),
 
-              // Tags
+              // Tags — only show first tag to save space
               if (item.tags.isNotEmpty) ...[
-                Wrap(
-                    spacing: 4,
-                    children: item.tags.map((t) => _Tag(t)).toList()),
-                const SizedBox(height: 6),
+                _Tag(item.tags.first),
+                const SizedBox(height: 5),
               ],
 
               // Name
-              Text(item.name,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
+              Text(
+                item.name,
+                style: const TextStyle(
+                    fontSize: 12, // ← reduced from 13
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 3),
 
-              // Description
-              Text(item.description,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textHint,
-                      height: 1.4),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-              const Spacer(),
-              const SizedBox(height: 10),
+              // Description — only 1 line to save space
+              Text(
+                item.description,
+                style: const TextStyle(
+                    fontSize: 10, // ← reduced from 11
+                    color: AppTheme.textHint,
+                    height: 1.3),
+                maxLines: 1, // ← reduced from 2
+                overflow: TextOverflow.ellipsis,
+              ),
+
+              // ── Spacer replaced with Expanded to safely fill remaining space ──
+              const Expanded(child: SizedBox()),
 
               // Price + controls
               Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('₱${item.price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.primary)),
-                    qty == 0
-                        ? _AddButton(onTap: () => cart.addItem(item))
-                        : _QtyControl(
-                            qty: qty,
-                            onIncrement: () =>
-                                cart.incrementQuantity(item.id),
-                            onDecrement: () =>
-                                cart.decrementQuantity(item.id),
-                          ),
-                  ]),
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '₱${item.price.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        fontSize: 15, // ← reduced from 16
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.primary),
+                  ),
+                  qty == 0
+                      ? _AddButton(onTap: () => cart.addItem(item))
+                      : _QtyControl(
+                          qty: qty,
+                          onIncrement: () => cart.incrementQuantity(item.id),
+                          onDecrement: () => cart.decrementQuantity(item.id),
+                        ),
+                ],
+              ),
             ],
           ),
         ),
@@ -110,11 +115,16 @@ class MenuItemCard extends StatelessWidget {
 
   String _foodEmoji(String category) {
     switch (category) {
-      case 'Mains':        return '🍲';
-      case 'Rice & Sides': return '🍚';
-      case 'Drinks':       return '🥤';
-      case 'Desserts':     return '🍮';
-      default:             return '🍽';
+      case 'Mains':
+        return '🍲';
+      case 'Rice & Sides':
+        return '🍚';
+      case 'Drinks':
+        return '🥤';
+      case 'Desserts':
+        return '🍮';
+      default:
+        return '🍽';
     }
   }
 }
@@ -155,11 +165,12 @@ class _AddButton extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 34, height: 34,
+          width: 30, // ← reduced from 34
+          height: 30,
           decoration: BoxDecoration(
               color: AppTheme.primary,
-              borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.add, color: Color(0xFF0A0A0A), size: 18),
+              borderRadius: BorderRadius.circular(8)),
+          child: const Icon(Icons.add, color: Color(0xFF0A0A0A), size: 16),
         ),
       );
 }
@@ -175,10 +186,10 @@ class _QtyControl extends StatelessWidget {
   Widget build(BuildContext context) => Row(children: [
         _CircleBtn(icon: Icons.remove, onTap: onDecrement, filled: false),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Text('$qty',
               style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w800,
                   color: AppTheme.textPrimary)),
         ),
@@ -196,19 +207,17 @@ class _CircleBtn extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 30, height: 30,
+          width: 26, // ← reduced from 30
+          height: 26,
           decoration: BoxDecoration(
               color: filled ? AppTheme.primary : AppTheme.primaryLight,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(7),
               border: filled
                   ? null
-                  : Border.all(
-                      color: AppTheme.primary.withOpacity(0.3))),
+                  : Border.all(color: AppTheme.primary.withOpacity(0.3))),
           child: Icon(icon,
-              size: 15,
-              color: filled
-                  ? const Color(0xFF0A0A0A)
-                  : AppTheme.primary),
+              size: 13,
+              color: filled ? const Color(0xFF0A0A0A) : AppTheme.primary),
         ),
       );
 }
@@ -227,11 +236,16 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
 
   String _foodEmoji(String category) {
     switch (category) {
-      case 'Mains':        return '🍲';
-      case 'Rice & Sides': return '🍚';
-      case 'Drinks':       return '🥤';
-      case 'Desserts':     return '🍮';
-      default:             return '🍽';
+      case 'Mains':
+        return '🍲';
+      case 'Rice & Sides':
+        return '🍚';
+      case 'Drinks':
+        return '🥤';
+      case 'Desserts':
+        return '🍮';
+      default:
+        return '🍽';
     }
   }
 
@@ -242,14 +256,21 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
         color: AppTheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        // ── Keeps sheet above keyboard when typing special requests ──
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                   color: AppTheme.border,
                   borderRadius: BorderRadius.circular(2)),
@@ -261,8 +282,8 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
             decoration: BoxDecoration(
               color: AppTheme.primaryLight,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: AppTheme.primary.withOpacity(0.2)),
+              border:
+                  Border.all(color: AppTheme.primary.withOpacity(0.2)),
             ),
             child: Center(
               child: Text(_foodEmoji(widget.item.category),
@@ -299,18 +320,18 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 color: AppTheme.textPrimary, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Special request (e.g. less spicy, no onions)',
-              hintStyle:
-                  const TextStyle(fontSize: 13, color: AppTheme.textHint),
+              hintStyle: const TextStyle(
+                  fontSize: 13, color: AppTheme.textHint),
               filled: true,
               fillColor: const Color(0xFF161616),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: AppTheme.border, width: 0.5)),
+                  borderSide: const BorderSide(
+                      color: AppTheme.border, width: 0.5)),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: AppTheme.border, width: 0.5)),
+                  borderSide: const BorderSide(
+                      color: AppTheme.border, width: 0.5)),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(
@@ -326,8 +347,8 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
               onPressed: () {
                 widget.cart.addItem(widget.item);
                 if (_controller.text.isNotEmpty) {
-                  widget.cart
-                      .setSpecialRequest(widget.item.id, _controller.text);
+                  widget.cart.setSpecialRequest(
+                      widget.item.id, _controller.text);
                 }
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(

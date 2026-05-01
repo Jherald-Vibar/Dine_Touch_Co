@@ -16,6 +16,7 @@ dependencies:
   # Networking
   http: ^1.2.0
 
+  # QR code
   qr_flutter: ^4.1.0
 
   # Supabase (real-time database)
@@ -24,6 +25,9 @@ dependencies:
   # UI
   google_fonts: ^6.1.0
   cached_network_image: ^3.3.0
+
+  # Security (password hashing)
+  crypto: ^3.0.3
 
   # Utilities
   intl: ^0.18.0
@@ -36,3 +40,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/dine_touch_co.jpg

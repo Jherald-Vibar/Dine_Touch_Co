@@ -43,7 +43,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     {
       'value': 'qr',
       'label': 'Online / QR',
-      'subtitle': 'QR Code payment',
+      'subtitle': 'GCash · GoTyme · Stripe',
       'icon': Icons.qr_code_scanner_outlined,
     },
   ];
@@ -93,6 +93,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+  void _showQrModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _QrPaymentModal(total: widget.total),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final subtotal = widget.total / 1.10;
@@ -136,6 +145,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         highlight: true),
                   ]),
                 ),
+
+                // Show QR options button when QR is selected
+                if (_paymentMethod == 'qr') ...[
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: _showQrModal,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryLight,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppTheme.primary.withOpacity(0.4),
+                            width: 1.2),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.qr_code_2_rounded,
+                              color: AppTheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          const Text('View QR Codes',
+                              style: TextStyle(
+                                  color: AppTheme.primary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -197,9 +238,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Widget _buildPaymentOption(Map<String, dynamic> method) {
     final isSelected = _paymentMethod == method['value'];
+    final isQr = method['value'] == 'qr';
     return GestureDetector(
-      onTap: () =>
-          setState(() => _paymentMethod = method['value'] as String),
+      onTap: () {
+        setState(() => _paymentMethod = method['value'] as String);
+        if (isQr) _showQrModal();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(16),
@@ -248,7 +292,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     fontSize: 12, color: AppTheme.textSecondary)),
           ]),
           const Spacer(),
-          if (isSelected)
+          if (isSelected && !isQr)
             Container(
               width: 20, height: 20,
               decoration: const BoxDecoration(
@@ -256,6 +300,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: const Icon(Icons.check,
                   color: Color(0xFF0A0A0A), size: 13),
             ),
+          if (isQr)
+            const Icon(Icons.chevron_right_rounded,
+                color: AppTheme.textSecondary, size: 20),
         ]),
       ),
     );
@@ -308,4 +355,266 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ]),
     );
   }
+}
+
+// ─── QR Payment Modal ────────────────────────────────────────────────────────
+
+class _QrPaymentModal extends StatefulWidget {
+  final double total;
+  const _QrPaymentModal({required this.total});
+
+  @override
+  State<_QrPaymentModal> createState() => _QrPaymentModalState();
+}
+
+class _QrPaymentModalState extends State<_QrPaymentModal> {
+  int _selectedIndex = 0;
+
+  final _providers = [
+    _QrProvider(
+      name: 'GCash',
+      color: Color(0xFF007DFE),
+      icon: Icons.account_balance_wallet_outlined,
+      // Replace these placeholder URLs with your real QR image assets or network URLs
+      qrAsset: 'assets/qr/gcash_qr.png',
+      instructions: 'Open GCash → QR → Scan to pay',
+    ),
+    _QrProvider(
+      name: 'GoTyme',
+      color: Color(0xFF00B87A),
+      icon: Icons.savings_outlined,
+      qrAsset: 'assets/qr/gotyme_qr.png',
+      instructions: 'Open GoTyme Bank → Pay → Scan QR',
+    ),
+    _QrProvider(
+      name: 'Stripe',
+      color: Color(0xFF6772E5),
+      icon: Icons.credit_score_outlined,
+      qrAsset: 'assets/qr/stripe_qr.png',
+      instructions: 'Scan with your camera or banking app',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = _providers[_selectedIndex];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF111111),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF333333),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Title
+          const Text('Scan to Pay',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('₱${widget.total.toStringAsFixed(0)}',
+              style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900)),
+          const SizedBox(height: 20),
+
+          // Provider tabs
+          Row(
+            children: List.generate(_providers.length, (i) {
+              final p = _providers[i];
+              final isActive = _selectedIndex == i;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedIndex = i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: EdgeInsets.only(right: i < _providers.length - 1 ? 8 : 0),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? p.color.withOpacity(0.15)
+                          : const Color(0xFF1A1A1A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isActive ? p.color : const Color(0xFF2A2A2A),
+                        width: isActive ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(children: [
+                      Icon(p.icon,
+                          color: isActive ? p.color : const Color(0xFF555555),
+                          size: 20),
+                      const SizedBox(height: 4),
+                      Text(p.name,
+                          style: TextStyle(
+                              color: isActive ? p.color : const Color(0xFF555555),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 20),
+
+          // QR Code area
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _buildQrCard(provider),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Instructions
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF2A2A2A)),
+            ),
+            child: Row(children: [
+              Icon(Icons.info_outline_rounded,
+                  color: provider.color, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(provider.instructions,
+                    style: const TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 12,
+                        height: 1.4)),
+              ),
+            ]),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Done button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: provider.color,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Done',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrCard(_QrProvider provider) {
+    return Container(
+      key: ValueKey(provider.name),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: provider.color.withOpacity(0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        // Provider header
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: provider.color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(provider.icon, color: provider.color, size: 18),
+          ),
+          const SizedBox(width: 8),
+          Text(provider.name,
+              style: TextStyle(
+                  color: provider.color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 16),
+
+        // QR image — replace with your actual QR assets
+        // If you have network QR codes, use Image.network() instead
+        Container(
+          width: 200, height: 200,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: provider.color.withOpacity(0.2), width: 2),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset(
+              provider.qrAsset,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.qr_code_2_rounded,
+                        color: provider.color, size: 80),
+                    const SizedBox(height: 8),
+                    Text('Add QR to\nassets/qr/',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: provider.color.withOpacity(0.6),
+                            fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Data Model ──────────────────────────────────────────────────────────────
+
+class _QrProvider {
+  final String name;
+  final Color color;
+  final IconData icon;
+  final String qrAsset;
+  final String instructions;
+
+  const _QrProvider({
+    required this.name,
+    required this.color,
+    required this.icon,
+    required this.qrAsset,
+    required this.instructions,
+  });
 }
