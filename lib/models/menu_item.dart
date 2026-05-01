@@ -22,7 +22,7 @@ class MenuItem {
   factory MenuItem.fromJson(Map<String, dynamic> json) => MenuItem(
         id: json['id'] as String,
         name: json['name'] as String,
-        category: json['category'] as String,
+        category: json['category'] as String? ?? '',
         price: (json['price'] as num).toDouble(),
         imageUrl: json['image_url'] as String? ?? '',
         description: json['description'] as String? ?? '',

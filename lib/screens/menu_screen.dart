@@ -4,11 +4,11 @@ import '../models/menu_item.dart';
 import '../providers/cart_provider.dart';
 import '../widgets/menu_item_card.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 import 'cart_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
-
   @override
   State<MenuScreen> createState() => _MenuScreenState();
 }
@@ -16,100 +16,146 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen> {
   String _selectedCategory = 'All';
   String _searchQuery = '';
+  List<String> _categories = ['All'];
+  List<MenuItem> _menuItems = [];
+  bool _isLoading = true;
+  String? _error;
 
-  final List<String> _categories = ['All', 'Mains', 'Rice & Sides', 'Drinks', 'Desserts'];
-
-  List<MenuItem> get _filteredItems {
-    return sampleMenu.where((item) {
-      final matchCat = _selectedCategory == 'All' || item.category == _selectedCategory;
-      final matchSearch = item.name.toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchCat && matchSearch && item.isAvailable;
-    }).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadMenu();
   }
+
+  Future<void> _loadMenu() async {
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final restaurantId = await ApiService.getRestaurantId();
+      final data = await ApiService.fetchMenu(restaurantId);
+      final cats = ['All'];
+      for (final c in (data['categories'] as List)) {
+        cats.add(c['name'] as String);
+      }
+      final items = (data['items'] as List)
+          .map((i) => MenuItem.fromJson(i as Map<String, dynamic>))
+          .toList();
+      setState(() {
+        _categories = cats;
+        _menuItems = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() { _error = e.toString(); _isLoading = false; });
+    }
+  }
+
+  List<MenuItem> get _filteredItems => _menuItems.where((item) {
+        final matchCat = _selectedCategory == 'All' || item.category == _selectedCategory;
+        final matchSearch = item.name.toLowerCase().contains(_searchQuery.toLowerCase());
+        return matchCat && matchSearch && item.isAvailable;
+      }).toList();
 
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(cart),
-            _buildCategoryTabs(),
-            Expanded(child: _buildMenuGrid()),
-          ],
-        ),
+        child: Column(children: [
+          _buildTopBar(),
+          _buildCategoryTabs(),
+          Expanded(child: _buildBody()),
+        ]),
       ),
-      floatingActionButton: cart.isEmpty
-          ? null
-          : _CartButton(
-              itemCount: cart.itemCount,
-              total: cart.total,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CartScreen()),
-              ),
-            ),
+      bottomNavigationBar: cart.isEmpty ? null : _buildCartBar(context, cart),
     );
   }
 
-  Widget _buildHeader(CartProvider cart) {
+  Widget _buildTopBar() {
     return Container(
       color: AppTheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          // Logo / brand
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(bottom: BorderSide(color: AppTheme.border, width: 0.5)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          // Gold logo mark
           Container(
-            width: 40, height: 40,
+            width: 36, height: 36,
             decoration: BoxDecoration(
               color: AppTheme.primary,
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Center(
-              child: Text('DT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+              child: Text('DT',
+                  style: TextStyle(
+                      color: Color(0xFF0A0A0A),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5)),
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Dine Touch', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-              Text('Table ${cart.tableNumber}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-            ],
-          ),
+          const SizedBox(width: 10),
+          const Text('MENU',
+              style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2)),
           const Spacer(),
-          // Search bar
-          SizedBox(
-            width: 220,
-            child: TextField(
-              onChanged: (v) => setState(() => _searchQuery = v),
-              decoration: InputDecoration(
-                hintText: 'Search menu...',
-                hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textHint),
-                prefixIcon: const Icon(Icons.search, size: 18, color: AppTheme.textHint),
-                filled: true,
-                fillColor: AppTheme.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                isDense: true,
+          FutureBuilder<int>(
+            future: ApiService.getTableNumber(),
+            builder: (_, snap) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryLight,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
               ),
+              child: Row(children: [
+                const Icon(Icons.table_restaurant_outlined,
+                    color: AppTheme.primary, size: 13),
+                const SizedBox(width: 6),
+                Text('Table ${snap.data ?? 1}',
+                    style: const TextStyle(
+                        color: AppTheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+              ]),
             ),
           ),
-        ],
-      ),
+        ]),
+        const SizedBox(height: 14),
+        // Search bar
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF161616),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.border, width: 0.5),
+          ),
+          child: TextField(
+            onChanged: (v) => setState(() => _searchQuery = v),
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+            decoration: const InputDecoration(
+              hintText: 'Search menu...',
+              hintStyle: TextStyle(color: AppTheme.textHint, fontSize: 14),
+              prefixIcon: Icon(Icons.search, color: AppTheme.textHint, size: 18),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 13),
+              isDense: true,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
   Widget _buildCategoryTabs() {
     return Container(
       color: AppTheme.surface,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -121,22 +167,22 @@ class _MenuScreenState extends State<MenuScreen> {
                 onTap: () => setState(() => _selectedCategory = cat),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                   decoration: BoxDecoration(
                     color: isSelected ? AppTheme.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: isSelected ? AppTheme.primary : AppTheme.border,
-                    ),
+                        color: isSelected
+                            ? AppTheme.primary
+                            : AppTheme.border),
                   ),
-                  child: Text(
-                    cat,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : AppTheme.textSecondary,
-                    ),
-                  ),
+                  child: Text(cat,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? const Color(0xFF0A0A0A)
+                              : AppTheme.textSecondary)),
                 ),
               ),
             );
@@ -146,69 +192,105 @@ class _MenuScreenState extends State<MenuScreen> {
     );
   }
 
-  Widget _buildMenuGrid() {
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          CircularProgressIndicator(color: AppTheme.primary),
+          SizedBox(height: 16),
+          Text('Loading menu...',
+              style: TextStyle(color: AppTheme.textSecondary)),
+        ]),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('⚠️', style: TextStyle(fontSize: 48)),
+          const SizedBox(height: 12),
+          const Text('Could not load menu',
+              style: TextStyle(fontSize: 16, color: AppTheme.textPrimary)),
+          const SizedBox(height: 8),
+          Text(_error!,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textHint)),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: _loadMenu, child: const Text('Try Again')),
+        ]),
+      );
+    }
     final items = _filteredItems;
     if (items.isEmpty) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('🍽', style: TextStyle(fontSize: 48)),
-            SizedBox(height: 12),
-            Text('No items found', style: TextStyle(fontSize: 16, color: AppTheme.textSecondary)),
-          ],
-        ),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Text('🍽', style: TextStyle(fontSize: 48)),
+          SizedBox(height: 12),
+          Text('No items found',
+              style: TextStyle(fontSize: 16, color: AppTheme.textSecondary)),
+        ]),
       );
     }
-
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+        crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.72,
+        childAspectRatio: 0.78,
       ),
       itemCount: items.length,
       itemBuilder: (_, i) => MenuItemCard(item: items[i]),
     );
   }
-}
 
-class _CartButton extends StatelessWidget {
-  final int itemCount;
-  final double total;
-  final VoidCallback onTap;
-
-  const _CartButton({required this.itemCount, required this.total, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildCartBar(BuildContext context, CartProvider cart) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const CartScreen())),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppTheme.primary,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: AppTheme.primary.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 24, height: 24,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(6)),
-              child: Center(
-                child: Text('$itemCount', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+        color: AppTheme.surface,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          decoration: BoxDecoration(
+            color: AppTheme.primary,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
+            ],
+          ),
+          child: Row(children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                  color: const Color(0xFF0A0A0A).withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Center(
+                  child: Text('${cart.itemCount}',
+                      style: const TextStyle(
+                          color: Color(0xFF0A0A0A),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800))),
             ),
-            const SizedBox(width: 10),
-            const Text('View Order', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 16),
-            Text('₱${total.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
-          ],
+            const SizedBox(width: 12),
+            const Text('View Order',
+                style: TextStyle(
+                    color: Color(0xFF0A0A0A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Text('₱${cart.total.toStringAsFixed(0)}',
+                style: const TextStyle(
+                    color: Color(0xFF0A0A0A),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(width: 6),
+            const Icon(Icons.arrow_forward_rounded,
+                color: Color(0xFF0A0A0A), size: 16),
+          ]),
         ),
       ),
     );
