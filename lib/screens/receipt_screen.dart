@@ -220,9 +220,9 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
 
             // Footer
             Container(
-              color: AppTheme.surface,
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: const BoxDecoration(
+                color: AppTheme.surface,
                 border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [

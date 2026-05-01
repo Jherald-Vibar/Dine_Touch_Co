@@ -73,7 +73,6 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Widget _buildTopBar() {
     return Container(
-      color: AppTheme.surface,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
@@ -104,28 +103,7 @@ class _MenuScreenState extends State<MenuScreen> {
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 2)),
-          const Spacer(),
-          FutureBuilder<int>(
-            future: ApiService.getTableNumber(),
-            builder: (_, snap) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.table_restaurant_outlined,
-                    color: AppTheme.primary, size: 13),
-                const SizedBox(width: 6),
-                Text('Table ${snap.data ?? 1}',
-                    style: const TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700)),
-              ]),
-            ),
-          ),
+
         ]),
         const SizedBox(height: 14),
         // Search bar

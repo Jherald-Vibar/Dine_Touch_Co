@@ -76,9 +76,9 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      color: AppTheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
+        color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.border, width: 0.5)),
       ),
       child: Row(children: [
@@ -202,9 +202,9 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
 
   Widget _buildFooter(BuildContext context) {
     return Container(
-      color: AppTheme.surface,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: const BoxDecoration(
+        color: AppTheme.surface,
         border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
       ),
       child: Row(children: [

@@ -90,9 +90,9 @@ class _KitchenScreenState extends State<KitchenScreen> {
     final m = _now.minute.toString().padLeft(2, '0');
     final t = '$h:$m';
     return Container(
-      color: AppTheme.surface,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
+        color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.border, width: 0.5)),
       ),
       child: Row(children: [
