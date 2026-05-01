@@ -51,15 +51,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Future<void> _placeOrder() async {
     setState(() => _isPlacing = true);
     try {
-      final items = widget.cartItems.map((i) => {
-            'menu_item_id': i.menuItem.id,
-            'name': i.menuItem.name,
-            'unit_price': i.menuItem.price,
-            'quantity': i.quantity,
-            'special_request': i.specialRequest,
-          }).toList();
+      final items = widget.cartItems
+          .map((i) => {
+                'menu_item_id': i.menuItem.id,
+                'name': i.menuItem.name,
+                'unit_price': i.menuItem.price,
+                'quantity': i.quantity,
+                'special_request': i.specialRequest,
+              })
+          .toList();
 
-      final result = await ApiService.placeOrder(items: items);
+      // ── FIX: pass customerName, orderType, tableNumber to placeOrder ──
+      final result = await ApiService.placeOrder(
+        items: items,
+        customerName: widget.customerName,
+        orderType: widget.orderType,
+        tableNumber: widget.tableNumber,
+      );
+
+      // Use the table number from widget first, fall back to session
       final tableNumber =
           widget.tableNumber ?? await ApiService.getTableNumber();
 
@@ -127,15 +137,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.border, width: 0.5),
+                    border:
+                        Border.all(color: AppTheme.border, width: 0.5),
                   ),
                   child: Column(children: [
                     _totalRow('Subtotal',
                         '₱${subtotal.toStringAsFixed(0)}',
                         dimValue: true),
                     const SizedBox(height: 8),
-                    _totalRow('Tax (10%)',
-                        '₱${tax.toStringAsFixed(0)}',
+                    _totalRow(
+                        'Tax (10%)', '₱${tax.toStringAsFixed(0)}',
                         dimValue: true),
                     const SizedBox(height: 12),
                     const Divider(height: 1),
@@ -146,7 +157,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ]),
                 ),
 
-                // Show QR options button when QR is selected
                 if (_paymentMethod == 'qr') ...[
                   const SizedBox(height: 16),
                   GestureDetector(
@@ -161,13 +171,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             color: AppTheme.primary.withOpacity(0.4),
                             width: 1.2),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.qr_code_2_rounded,
+                          Icon(Icons.qr_code_2_rounded,
                               color: AppTheme.primary, size: 20),
-                          const SizedBox(width: 8),
-                          const Text('View QR Codes',
+                          SizedBox(width: 8),
+                          Text('View QR Codes',
                               style: TextStyle(
                                   color: AppTheme.primary,
                                   fontSize: 14,
@@ -188,22 +198,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Widget _totalRow(String label, String value,
       {bool highlight = false, bool dimValue = false}) {
-    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label,
-          style: TextStyle(
-              color: highlight
-                  ? AppTheme.textPrimary
-                  : AppTheme.textSecondary,
-              fontSize: highlight ? 16 : 14,
-              fontWeight:
-                  highlight ? FontWeight.w700 : FontWeight.w400)),
-      Text(value,
-          style: TextStyle(
-              color: highlight ? AppTheme.primary : AppTheme.textSecondary,
-              fontSize: highlight ? 17 : 14,
-              fontWeight:
-                  highlight ? FontWeight.w800 : FontWeight.w400)),
-    ]);
+    return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: highlight
+                      ? AppTheme.textPrimary
+                      : AppTheme.textSecondary,
+                  fontSize: highlight ? 16 : 14,
+                  fontWeight: highlight
+                      ? FontWeight.w700
+                      : FontWeight.w400)),
+          Text(value,
+              style: TextStyle(
+                  color: highlight
+                      ? AppTheme.primary
+                      : AppTheme.textSecondary,
+                  fontSize: highlight ? 17 : 14,
+                  fontWeight: highlight
+                      ? FontWeight.w800
+                      : FontWeight.w400)),
+        ]);
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -211,13 +227,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: Border(bottom: BorderSide(color: AppTheme.border, width: 0.5)),
+        border: Border(
+            bottom: BorderSide(color: AppTheme.border, width: 0.5)),
       ),
       child: Row(children: [
         GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
-            width: 36, height: 36,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(10),
@@ -265,7 +283,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
         child: Row(children: [
           Container(
-            width: 46, height: 46,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
                 color: isSelected
                     ? AppTheme.primary
@@ -294,7 +313,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
           const Spacer(),
           if (isSelected && !isQr)
             Container(
-              width: 20, height: 20,
+              width: 20,
+              height: 20,
               decoration: const BoxDecoration(
                   color: AppTheme.primary, shape: BoxShape.circle),
               child: const Icon(Icons.check,
@@ -313,7 +333,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+        border:
+            Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
       ),
       child: Row(children: [
         Expanded(
@@ -344,7 +365,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14)),
             child: _isPlacing
                 ? const SizedBox(
-                    width: 20, height: 20,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Color(0xFF0A0A0A)))
                 : Text(
@@ -375,7 +397,6 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
       name: 'GCash',
       color: Color(0xFF007DFE),
       icon: Icons.account_balance_wallet_outlined,
-      // Replace these placeholder URLs with your real QR image assets or network URLs
       qrAsset: 'assets/qr/gcash_qr.png',
       instructions: 'Open GCash → QR → Scan to pay',
     ),
@@ -408,10 +429,10 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Drag handle
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: const Color(0xFF333333),
                 borderRadius: BorderRadius.circular(2),
@@ -419,8 +440,6 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // Title
           const Text('Scan to Pay',
               style: TextStyle(
                   color: Colors.white,
@@ -433,8 +452,6 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
                   fontSize: 28,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 20),
-
-          // Provider tabs
           Row(
             children: List.generate(_providers.length, (i) {
               final p = _providers[i];
@@ -444,7 +461,8 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
                   onTap: () => setState(() => _selectedIndex = i),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    margin: EdgeInsets.only(right: i < _providers.length - 1 ? 8 : 0),
+                    margin: EdgeInsets.only(
+                        right: i < _providers.length - 1 ? 8 : 0),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: isActive
@@ -452,18 +470,24 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
                           : const Color(0xFF1A1A1A),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isActive ? p.color : const Color(0xFF2A2A2A),
+                        color: isActive
+                            ? p.color
+                            : const Color(0xFF2A2A2A),
                         width: isActive ? 1.5 : 1,
                       ),
                     ),
                     child: Column(children: [
                       Icon(p.icon,
-                          color: isActive ? p.color : const Color(0xFF555555),
+                          color: isActive
+                              ? p.color
+                              : const Color(0xFF555555),
                           size: 20),
                       const SizedBox(height: 4),
                       Text(p.name,
                           style: TextStyle(
-                              color: isActive ? p.color : const Color(0xFF555555),
+                              color: isActive
+                                  ? p.color
+                                  : const Color(0xFF555555),
                               fontSize: 11,
                               fontWeight: FontWeight.w700)),
                     ]),
@@ -473,19 +497,15 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
             }),
           ),
           const SizedBox(height: 20),
-
-          // QR Code area
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: _buildQrCard(provider),
           ),
-
           const SizedBox(height: 16),
-
-          // Instructions
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A1A),
               borderRadius: BorderRadius.circular(10),
@@ -504,10 +524,7 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
               ),
             ]),
           ),
-
           const SizedBox(height: 16),
-
-          // Done button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -520,7 +537,8 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Done',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -545,7 +563,6 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
         ],
       ),
       child: Column(children: [
-        // Provider header
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Container(
             padding: const EdgeInsets.all(6),
@@ -553,7 +570,8 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
               color: provider.color.withOpacity(0.12),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(provider.icon, color: provider.color, size: 18),
+            child:
+                Icon(provider.icon, color: provider.color, size: 18),
           ),
           const SizedBox(width: 8),
           Text(provider.name,
@@ -563,15 +581,14 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
                   fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 16),
-
-        // QR image — replace with your actual QR assets
-        // If you have network QR codes, use Image.network() instead
         Container(
-          width: 200, height: 200,
+          width: 200,
+          height: 200,
           decoration: BoxDecoration(
             color: const Color(0xFFF5F5F5),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: provider.color.withOpacity(0.2), width: 2),
+            border: Border.all(
+                color: provider.color.withOpacity(0.2), width: 2),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
@@ -600,8 +617,6 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
     );
   }
 }
-
-// ─── Data Model ──────────────────────────────────────────────────────────────
 
 class _QrProvider {
   final String name;

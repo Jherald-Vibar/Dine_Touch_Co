@@ -53,7 +53,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     final shortId = widget.order.id.substring(0, 8).toUpperCase();
     final now = DateTime.now();
     final dateStr = '${_month(now.month)} ${now.day}, ${now.year} · ${_time(now)}';
-    final trackingUrl = 'https://yourapp.com/track/${widget.order.id}';
+    final trackingUrl = 'https://beamish-buttercream-d2f4a8.netlify.app/track/${widget.order.id}';
 
     return Scaffold(
       backgroundColor: AppTheme.background,

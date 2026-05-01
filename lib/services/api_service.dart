@@ -18,7 +18,8 @@ class ApiService {
 
   static Future<String> getRestaurantId() async {
     final p = await SharedPreferences.getInstance();
-    return p.getString('restaurant_id') ?? '00000000-0000-0000-0000-000000000001';
+    return p.getString('restaurant_id') ??
+        '00000000-0000-0000-0000-000000000001';
   }
 
   static Future<int> getTableNumber() async {
@@ -42,7 +43,6 @@ class ApiService {
         .eq('is_available', true)
         .order('sort_order');
 
-    // Flatten joined category name into each item
     final flatItems = (items as List).map((item) {
       final map = Map<String, dynamic>.from(item as Map);
       map['category'] = (map['categories'] as Map?)?['name'] ?? '';
@@ -57,16 +57,22 @@ class ApiService {
   static Future<Map<String, dynamic>> placeOrder({
     required List<Map<String, dynamic>> items,
     String? notes,
+    // ── NEW: accept all fields from PaymentScreen ──
+    String? customerName,
+    String? orderType,
+    int? tableNumber,
   }) async {
     final restaurantId = await getRestaurantId();
-    final tableNumber = await getTableNumber();
 
-    // Get table_id
+    // Use the passed tableNumber first, fall back to session
+    final resolvedTableNumber = tableNumber ?? await getTableNumber();
+
+    // Get table_id from restaurant_tables
     final tableRows = await _supabase
         .from('restaurant_tables')
         .select('id')
         .eq('restaurant_id', restaurantId)
-        .eq('table_number', tableNumber);
+        .eq('table_number', resolvedTableNumber);
 
     final tableId = (tableRows as List).isNotEmpty
         ? tableRows.first['id']
@@ -78,13 +84,15 @@ class ApiService {
       (sum, i) => sum + (i['unit_price'] as num) * (i['quantity'] as num),
     );
 
-    // Create order
+    // Create order — now includes customer_name, order_type, table_id
     final orderRows = await _supabase
         .from('orders')
         .insert({
           'restaurant_id': restaurantId,
           'table_id': tableId,
-          'table_number': tableNumber,
+          'table_number': resolvedTableNumber,
+          'customer_name': customerName ?? '',
+          'order_type': orderType ?? 'dine_in',
           'notes': notes ?? '',
           'subtotal': total,
           'total_amount': total,
@@ -94,14 +102,16 @@ class ApiService {
     final order = (orderRows as List).first as Map<String, dynamic>;
 
     // Insert order items
-    final orderItems = items.map((i) => {
-      'order_id': order['id'],
-      'menu_item_id': i['menu_item_id'],
-      'name': i['name'],
-      'unit_price': i['unit_price'],
-      'quantity': i['quantity'],
-      'special_request': i['special_request'] ?? '',
-    }).toList();
+    final orderItems = items
+        .map((i) => {
+              'order_id': order['id'],
+              'menu_item_id': i['menu_item_id'],
+              'name': i['name'],
+              'unit_price': i['unit_price'],
+              'quantity': i['quantity'],
+              'special_request': i['special_request'] ?? '',
+            })
+        .toList();
 
     await _supabase.from('order_items').insert(orderItems);
 

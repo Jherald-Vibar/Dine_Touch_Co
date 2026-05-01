@@ -15,6 +15,8 @@ class _KitchenScreenState extends State<KitchenScreen> {
   Timer? _clockTimer;
   DateTime _now = DateTime.now();
   final Map<String, List<Map<String, dynamic>>> _itemsCache = {};
+  // Track which orders are currently being updated to show loading
+  final Set<String> _updatingOrders = {};
 
   @override
   void initState() {
@@ -36,7 +38,46 @@ class _KitchenScreenState extends State<KitchenScreen> {
   }
 
   Future<void> _updateStatus(String orderId, String newStatus) async {
-    await SupabaseService.updateOrderStatus(orderId, newStatus);
+    if (_updatingOrders.contains(orderId)) return; // prevent double tap
+
+    setState(() => _updatingOrders.add(orderId));
+
+    try {
+      await SupabaseService.updateOrderStatus(orderId, newStatus);
+
+      if (mounted) {
+        final label = switch (newStatus) {
+          'preparing' => '🔥 Cooking started!',
+          'ready'     => '✅ Order marked ready!',
+          'served'    => '🍽 Order served!',
+          _           => 'Status updated',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(label),
+          backgroundColor: switch (newStatus) {
+            'preparing' => AppTheme.warning,
+            'ready'     => AppTheme.success,
+            _           => AppTheme.textHint,
+          },
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(12),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to update: $e'),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(12),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _updatingOrders.remove(orderId));
+    }
   }
 
   @override
@@ -47,12 +88,20 @@ class _KitchenScreenState extends State<KitchenScreen> {
         child: StreamBuilder<List<Map<String, dynamic>>>(
           stream: SupabaseService.watchActiveOrders(_restaurantId),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Column(children: [
+                _buildHeader(0, 0),
+                Expanded(child: _buildError(snapshot.error.toString())),
+              ]);
+            }
+
             final orders = snapshot.data ?? [];
             for (final o in orders) {
               _loadItemsFor(o['id'] as String);
             }
+
             final active = orders.where((o) => o['status'] != 'ready').toList();
-            final ready = orders.where((o) => o['status'] == 'ready').toList();
+            final ready  = orders.where((o) => o['status'] == 'ready').toList();
 
             return Column(children: [
               _buildHeader(active.length, ready.length),
@@ -62,20 +111,21 @@ class _KitchenScreenState extends State<KitchenScreen> {
                     : SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (active.isNotEmpty) ...[
-                                _sectionLabel('Active (${active.length})'),
-                                const SizedBox(height: 10),
-                                _buildGrid(active),
-                              ],
-                              if (ready.isNotEmpty) ...[
-                                const SizedBox(height: 20),
-                                _sectionLabel('Ready to serve (${ready.length})'),
-                                const SizedBox(height: 10),
-                                _buildGrid(ready, compact: true),
-                              ],
-                            ]),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (active.isNotEmpty) ...[
+                              _sectionLabel('Active (${active.length})'),
+                              const SizedBox(height: 10),
+                              _buildGrid(active),
+                            ],
+                            if (ready.isNotEmpty) ...[
+                              const SizedBox(height: 20),
+                              _sectionLabel('Ready to serve (${ready.length})'),
+                              const SizedBox(height: 10),
+                              _buildGrid(ready, compact: true),
+                            ],
+                          ],
+                        ),
                       ),
               ),
             ]);
@@ -88,7 +138,6 @@ class _KitchenScreenState extends State<KitchenScreen> {
   Widget _buildHeader(int active, int ready) {
     final h = _now.hour.toString().padLeft(2, '0');
     final m = _now.minute.toString().padLeft(2, '0');
-    final t = '$h:$m';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
@@ -99,10 +148,8 @@ class _KitchenScreenState extends State<KitchenScreen> {
         Container(
           width: 38, height: 38,
           decoration: BoxDecoration(
-              color: AppTheme.primary,
-              borderRadius: BorderRadius.circular(10)),
-          child: const Center(
-              child: Text('🍳', style: TextStyle(fontSize: 18))),
+              color: AppTheme.primary, borderRadius: BorderRadius.circular(10)),
+          child: const Center(child: Text('🍳', style: TextStyle(fontSize: 18))),
         ),
         const SizedBox(width: 12),
         const Text('Kitchen Display',
@@ -123,7 +170,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppTheme.border, width: 0.5),
           ),
-          child: Text(t,
+          child: Text('$h:${_now.minute.toString().padLeft(2, '0')}',
               style: const TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 15,
@@ -157,11 +204,13 @@ class _KitchenScreenState extends State<KitchenScreen> {
       itemBuilder: (_, i) {
         final o = orders[i];
         final items = _itemsCache[o['id']] ?? [];
+        final isUpdating = _updatingOrders.contains(o['id'] as String);
         return _OrderCard(
           order: o,
           items: items,
           onStatusChange: _updateStatus,
           compact: compact,
+          isUpdating: isUpdating,
         );
       },
     );
@@ -183,6 +232,25 @@ class _KitchenScreenState extends State<KitchenScreen> {
       ]),
     );
   }
+
+  Widget _buildError(String error) {
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Text('⚠️', style: TextStyle(fontSize: 48)),
+        const SizedBox(height: 12),
+        const Text('Connection error',
+            style: TextStyle(color: AppTheme.textPrimary, fontSize: 18)),
+        const SizedBox(height: 8),
+        Text(error,
+            style: const TextStyle(color: AppTheme.textHint, fontSize: 12),
+            textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        const Text('Check Supabase RLS policies — make sure UPDATE is allowed.',
+            style: TextStyle(color: AppTheme.warning, fontSize: 11),
+            textAlign: TextAlign.center),
+      ]),
+    );
+  }
 }
 
 // ── Order Card ───────────────────────────────────────────────
@@ -191,22 +259,25 @@ class _OrderCard extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final Future<void> Function(String, String) onStatusChange;
   final bool compact;
+  final bool isUpdating;
 
   const _OrderCard({
     required this.order,
     required this.items,
     required this.onStatusChange,
     this.compact = false,
+    this.isUpdating = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final status = order['status'] as String;
-    final createdAt =
-        DateTime.tryParse(order['created_at'] as String? ?? '') ?? DateTime.now();
-    final elapsed = DateTime.now().difference(createdAt);
-    final isUrgent = elapsed.inMinutes >= 10 && status != 'ready';
+    final status      = order['status'] as String;
+    final createdAt   = DateTime.tryParse(order['created_at'] as String? ?? '') ?? DateTime.now();
+    final elapsed     = DateTime.now().difference(createdAt);
+    final isUrgent    = elapsed.inMinutes >= 10 && status != 'ready';
     final tableNumber = order['table_number'];
+    final customerName = order['customer_name'] as String? ?? '';
+    final orderType   = order['order_type'] as String? ?? 'dine_in';
 
     Color borderColor;
     Color accentColor;
@@ -236,11 +307,11 @@ class _OrderCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('Table $tableNumber',
-                style: TextStyle(
-                    color: accentColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700)),
+            Text(
+              orderType == 'take_out' ? '🛍 Take Out' : 'Table $tableNumber',
+              style: TextStyle(
+                  color: accentColor, fontSize: 13, fontWeight: FontWeight.w700),
+            ),
             const Icon(Icons.check_circle, color: AppTheme.success, size: 16),
           ]),
           const SizedBox(height: 4),
@@ -248,9 +319,11 @@ class _OrderCard extends StatelessWidget {
               style: const TextStyle(color: AppTheme.textHint, fontSize: 11)),
           const SizedBox(height: 6),
           _ActionButton(
-              status: status,
-              orderId: order['id'] as String,
-              onStatusChange: onStatusChange),
+            status: status,
+            orderId: order['id'] as String,
+            onStatusChange: onStatusChange,
+            isUpdating: isUpdating,
+          ),
         ]),
       );
     }
@@ -267,32 +340,52 @@ class _OrderCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: accentColor.withOpacity(0.10),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(12)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           ),
-          child:
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(
-              (order['id'] as String).substring(0, 8).toUpperCase(),
-              style: const TextStyle(
-                  color: AppTheme.textHint,
-                  fontSize: 10,
-                  fontFamily: 'monospace'),
-            ),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6)),
-              child: Text('Table $tableNumber',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Order ID
+              Text(
+                (order['id'] as String).substring(0, 8).toUpperCase(),
+                style: const TextStyle(
+                    color: AppTheme.textHint, fontSize: 10, fontFamily: 'monospace'),
+              ),
+              // Table / order type badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6)),
+                child: Text(
+                  orderType == 'take_out'
+                      ? '🛍 Take Out'
+                      : 'Table $tableNumber',
                   style: TextStyle(
                       color: accentColor,
                       fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-          ]),
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
         ),
+
+        // Customer name (if provided)
+        if (customerName.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Row(children: [
+              const Icon(Icons.person_outline_rounded,
+                  size: 12, color: AppTheme.textHint),
+              const SizedBox(width: 4),
+              Text(customerName,
+                  style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
+            ]),
+          ),
 
         // Items list
         Expanded(
@@ -302,72 +395,82 @@ class _OrderCard extends StatelessWidget {
                 ? const Center(
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: AppTheme.primary))
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                : ListView(
+                    physics: const NeverScrollableScrollPhysics(),
                     children: items.map((item) {
                       final note = item['special_request'] as String? ?? '';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                    color: AppTheme.primaryLight,
-                                    borderRadius: BorderRadius.circular(5)),
-                                child: Center(
-                                    child: Text('${item['quantity']}',
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 22, height: 22,
+                              decoration: BoxDecoration(
+                                  color: AppTheme.primaryLight,
+                                  borderRadius: BorderRadius.circular(5)),
+                              child: Center(
+                                  child: Text('${item['quantity']}',
+                                      style: const TextStyle(
+                                          color: AppTheme.primary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800))),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item['name'] as String,
+                                      style: const TextStyle(
+                                          color: AppTheme.textPrimary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500)),
+                                  if (note.isNotEmpty)
+                                    Text('📝 $note',
                                         style: const TextStyle(
-                                            color: AppTheme.primary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800))),
+                                            color: AppTheme.warning,
+                                            fontSize: 10)),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(item['name'] as String,
-                                          style: const TextStyle(
-                                              color: AppTheme.textPrimary,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500)),
-                                      if (note.isNotEmpty)
-                                        Text('📝 $note',
-                                            style: const TextStyle(
-                                                color: AppTheme.warning,
-                                                fontSize: 10)),
-                                    ]),
-                              ),
-                            ]),
+                            ),
+                          ],
+                        ),
                       );
                     }).toList(),
                   ),
           ),
         ),
 
-        // Footer
+        // Footer: elapsed time + action button
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
           child: Column(children: [
             Row(children: [
               Icon(Icons.timer_outlined,
-                  size: 12,
-                  color: isUrgent ? Colors.red : AppTheme.textHint),
+                  size: 12, color: isUrgent ? Colors.red : AppTheme.textHint),
               const SizedBox(width: 4),
               Text(_fmt(elapsed),
                   style: TextStyle(
                       fontSize: 11,
                       color: isUrgent ? Colors.red : AppTheme.textHint)),
+              if (isUrgent) ...[
+                const SizedBox(width: 6),
+                const Text('URGENT',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5)),
+              ],
             ]),
             const SizedBox(height: 6),
             _ActionButton(
-                status: status,
-                orderId: order['id'] as String,
-                onStatusChange: onStatusChange),
+              status: status,
+              orderId: order['id'] as String,
+              onStatusChange: onStatusChange,
+              isUpdating: isUpdating,
+            ),
           ]),
         ),
       ]),
@@ -380,61 +483,66 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
+// ── Action Button with loading state ────────────────────────
 class _ActionButton extends StatelessWidget {
   final String status;
   final String orderId;
   final Future<void> Function(String, String) onStatusChange;
+  final bool isUpdating;
 
   const _ActionButton({
     required this.status,
     required this.orderId,
     required this.onStatusChange,
+    this.isUpdating = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    String label;
-    Color color;
-    String nextStatus;
+    final (label, color, nextStatus) = switch (status) {
+      'pending'   => ('Start Cooking 🔥', AppTheme.warning,  'preparing'),
+      'preparing' => ('Mark Ready ✓',     AppTheme.success,  'ready'),
+      'ready'     => ('Mark Served',      AppTheme.textHint, 'served'),
+      _           => ('', AppTheme.textHint, ''),
+    };
 
-    switch (status) {
-      case 'pending':
-        label = 'Start Cooking';
-        color = AppTheme.warning;
-        nextStatus = 'preparing';
-      case 'preparing':
-        label = 'Mark Ready ✓';
-        color = AppTheme.success;
-        nextStatus = 'ready';
-      case 'ready':
-        label = 'Mark Served';
-        color = AppTheme.textHint;
-        nextStatus = 'served';
-      default:
-        return const SizedBox.shrink();
-    }
+    if (nextStatus.isEmpty) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: () => onStatusChange(orderId, nextStatus),
-      child: Container(
+      onTap: isUpdating ? null : () => onStatusChange(orderId, nextStatus),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 7),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: isUpdating
+              ? AppTheme.border.withOpacity(0.1)
+              : color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.4)),
+          border: Border.all(
+              color: isUpdating
+                  ? AppTheme.border.withOpacity(0.3)
+                  : color.withOpacity(0.4)),
         ),
         child: Center(
-            child: Text(label,
-                style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700))),
+          child: isUpdating
+              ? SizedBox(
+                  width: 14, height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: color),
+                )
+              : Text(label,
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+        ),
       ),
     );
   }
 }
 
+// ── Pill badge ───────────────────────────────────────────────
 class _Pill extends StatelessWidget {
   final String label, value;
   final Color color;
@@ -454,8 +562,7 @@ class _Pill extends StatelessWidget {
                 color: color, fontWeight: FontWeight.w800, fontSize: 14)),
         const SizedBox(width: 5),
         Text(label,
-            style:
-                TextStyle(color: color.withOpacity(0.7), fontSize: 12)),
+            style: TextStyle(color: color.withOpacity(0.7), fontSize: 12)),
       ]),
     );
   }

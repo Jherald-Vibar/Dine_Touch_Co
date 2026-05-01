@@ -16,23 +16,23 @@ dependencies:
   # Networking
   http: ^1.2.0
 
-  # QR code
-  qr_flutter: ^4.1.0
-
-  # Supabase (real-time database)
+  # Supabase
   supabase_flutter: ^2.5.0
 
   # UI
   google_fonts: ^6.1.0
   cached_network_image: ^3.3.0
-
-  # Security (password hashing)
-  crypto: ^3.0.3
+  qr_flutter: ^4.1.0
 
   # Utilities
   intl: ^0.18.0
   shared_preferences: ^2.2.0
+  permission_handler: ^11.0.0
 
+  # Printing — use this instead of esc_pos_bluetooth
+  blue_thermal_printer: ^1.0.10
+  esc_pos_utils_plus: ^2.0.4
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
