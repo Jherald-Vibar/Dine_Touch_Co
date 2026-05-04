@@ -8,6 +8,7 @@ import 'theme/app_theme.dart';
 import 'services/supabase_service.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+// import 'screens/printer_test.dart';
 
 // ─── Admin credentials (hashed) ─────────────────────────────────────────────
 const _kAdminUsername = 'dine_touch_admin';
@@ -56,7 +57,7 @@ class DineTouchApp extends StatelessWidget {
       ),
     );
   }
-}
+} //const AppLauncher(),
 
 // ─────────────────────────────────────────────────────────────
 // Launcher — Kiosk mode only; Kitchen hidden behind admin login

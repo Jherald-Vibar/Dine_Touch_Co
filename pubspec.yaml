@@ -28,11 +28,11 @@ dependencies:
   intl: ^0.18.0
   shared_preferences: ^2.2.0
   permission_handler: ^11.0.0
+  crypto: ^3.0.3
 
-  # Printing — use this instead of esc_pos_bluetooth
-  blue_thermal_printer: ^1.0.10
-  esc_pos_utils_plus: ^2.0.4
-  
+  # Printing — BLE based, works with TSPL/ZPL
+  flutter_bluetooth_serial: ^0.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
