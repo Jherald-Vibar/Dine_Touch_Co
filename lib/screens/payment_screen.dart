@@ -393,21 +393,21 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
   int _selectedIndex = 0;
 
   final _providers = [
-    _QrProvider(
+    const _QrProvider(
       name: 'GCash',
       color: Color(0xFF007DFE),
       icon: Icons.account_balance_wallet_outlined,
       qrAsset: 'assets/qr/gcash_qr.png',
       instructions: 'Open GCash → QR → Scan to pay',
     ),
-    _QrProvider(
+    const _QrProvider(
       name: 'GoTyme',
       color: Color(0xFF00B87A),
       icon: Icons.savings_outlined,
       qrAsset: 'assets/qr/gotyme_qr.png',
       instructions: 'Open GoTyme Bank → Pay → Scan QR',
     ),
-    _QrProvider(
+    const _QrProvider(
       name: 'Stripe',
       color: Color(0xFF6772E5),
       icon: Icons.credit_score_outlined,

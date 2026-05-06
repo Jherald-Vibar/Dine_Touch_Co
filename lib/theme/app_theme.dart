@@ -20,11 +20,10 @@ class AppTheme {
   static ThemeData get theme => ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        colorScheme: ColorScheme.dark(
+        colorScheme: const ColorScheme.dark(
           primary: primary,
           onPrimary: Color(0xFF0A0A0A),
           surface: surface,
-          background: background,
           onSurface: textPrimary,
           outline: border,
         ),
@@ -43,7 +42,7 @@ class AppTheme {
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: primary,
-            foregroundColor: Color(0xFF0A0A0A),
+            foregroundColor: const Color(0xFF0A0A0A),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12)),
             padding:

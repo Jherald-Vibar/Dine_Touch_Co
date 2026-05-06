@@ -8,6 +8,7 @@ import 'theme/app_theme.dart';
 import 'services/supabase_service.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'services/api_service.dart';
 // import 'screens/printer_test.dart';
 
 // ─── Admin credentials (hashed) ─────────────────────────────────────────────
@@ -213,10 +214,29 @@ class _AppLauncherState extends State<AppLauncher>
                             title: 'Customer Kiosk',
                             subtitle: 'Browse menu & place orders',
                             accent: _gold,
-                            onTap: () => Navigator.pushReplacement(
-                              context,
-                              _fadeRoute(const MenuScreen()),
-                            ),
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                barrierColor: Colors.black87,
+                                builder: (_) => _TableNumberDialog(
+                                  onConfirm: (tableNumber) async {
+                                    await ApiService.saveSession(
+                                      restaurantId: await ApiService.getRestaurantId(),
+                                      tableNumber: tableNumber,
+                                      restaurantName: 'Dine Touch Co.',
+                                    );
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                      Navigator.pushReplacement(
+                                        context,
+                                        _fadeRoute(const MenuScreen()),
+                                      );
+                                    }
+                                  },
+                                ),
+                              );
+                            },
                           ),
                         ),
 
@@ -805,4 +825,181 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GridPainter oldDelegate) => false;
+}
+
+// ─── Table Number Dialog ──────────────────────────────────────────────────────
+class _TableNumberDialog extends StatefulWidget {
+  final ValueChanged<int> onConfirm;
+  const _TableNumberDialog({required this.onConfirm});
+
+  @override
+  State<_TableNumberDialog> createState() => _TableNumberDialogState();
+}
+
+class _TableNumberDialogState extends State<_TableNumberDialog> {
+  final _ctrl = TextEditingController();
+  String? _error;
+
+  static const Color _gold = Color(0xFFD4AF6A);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _ctrl.text.trim();
+    if (text.isEmpty) {
+      setState(() => _error = 'Please enter a table number');
+      return;
+    }
+    final number = int.tryParse(text);
+    if (number == null || number < 1) {
+      setState(() => _error = 'Enter a valid table number');
+      return;
+    }
+    widget.onConfirm(number);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        width: 320,
+        decoration: BoxDecoration(
+          color: const Color(0xFF111111),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF2A2A2A)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.6),
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFF1E1E1E))),
+              ),
+              child: Column(children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF2E2E2E)),
+                  ),
+                  child: const Icon(Icons.table_restaurant_outlined,
+                      color: Color(0xFFD4AF6A), size: 22),
+                ),
+                const SizedBox(height: 14),
+                const Text('Table Number',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                const Text('Which table are you serving?',
+                    style: TextStyle(color: Color(0xFF666666), fontSize: 12)),
+              ]),
+            ),
+
+            // Input
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF2A2A2A)),
+                  ),
+                  child: TextField(
+                    controller: _ctrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    maxLength: 2,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800),
+                    onSubmitted: (_) => _submit(),
+                    onChanged: (_) => setState(() => _error = null),
+                    decoration: const InputDecoration(
+                      hintText: '—',
+                      hintStyle: TextStyle(
+                          color: Color(0xFF444444),
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800),
+                      border: InputBorder.none,
+                      counterText: '',
+                      contentPadding: EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border:
+                          Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline_rounded,
+                          color: Colors.redAccent, size: 15),
+                      const SizedBox(width: 8),
+                      Text(_error!,
+                          style: const TextStyle(
+                              color: Colors.redAccent, fontSize: 12)),
+                    ]),
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _gold,
+                      foregroundColor: const Color(0xFF0A0A0A),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Confirm Table',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

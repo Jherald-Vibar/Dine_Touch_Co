@@ -7,6 +7,7 @@ import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../models/order.dart';
 import '../providers/cart_provider.dart';
 import '../theme/app_theme.dart';
+import 'tracker_screen.dart';
 import 'menu_screen.dart';
 
 class ReceiptScreen extends StatefulWidget {
@@ -265,11 +266,11 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 18, vertical: 14),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: AppTheme.primaryLight,
-                            borderRadius: const BorderRadius.vertical(
+                            borderRadius: BorderRadius.vertical(
                                 top: Radius.circular(20)),
-                            border: const Border(
+                            border: Border(
                                 bottom: BorderSide(
                                     color: AppTheme.border, width: 0.5)),
                           ),
@@ -499,11 +500,36 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
                 border: Border(
                     top: BorderSide(color: AppTheme.border, width: 0.5)),
               ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isPrinting ? null : _printReceipt,
+child: Column(mainAxisSize: MainAxisSize.min, children: [
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TrackerScreen(
+            orderId: widget.order.id,
+            shortId: widget.order.id.substring(0, 8).toUpperCase(),
+          ),
+        ),
+      ),
+      icon: const Icon(Icons.track_changes_outlined, size: 18),
+      label: const Text('Track My Order', style: TextStyle(fontSize: 15)),
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        backgroundColor: const Color(0xFF1A1A1A),
+        foregroundColor: AppTheme.primary,
+        side: const BorderSide(color: AppTheme.primary, width: 1.5),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+  ),
+  const SizedBox(height: 10),
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      onPressed: _isPrinting ? null : _printReceipt,
                     icon: _isPrinting
                         ? const SizedBox(
                             width: 18,

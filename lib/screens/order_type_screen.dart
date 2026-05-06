@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/order.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 import 'payment_screen.dart';
 
 class OrderTypeScreen extends StatefulWidget {
@@ -15,7 +16,18 @@ class OrderTypeScreen extends StatefulWidget {
 class _OrderTypeScreenState extends State<OrderTypeScreen> {
   String _orderType = 'dine_in';
   String _name = '';
-  String _tableNumber = '';
+  int? _tableNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTableNumber();
+  }
+
+  Future<void> _loadTableNumber() async {
+    final saved = await ApiService.getTableNumber();
+    setState(() => _tableNumber = saved);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +62,29 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
 
                 if (_orderType == 'dine_in') ...[
                   const SizedBox(height: 20),
-                  _fieldLabel('Table Number (optional)'),
+                  _fieldLabel('Table Number'),
                   const SizedBox(height: 8),
-                  _buildTextField('e.g. 5',
-                      keyboardType: TextInputType.number,
-                      onChanged: (v) => _tableNumber = v),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.primary, width: 1.5),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.table_restaurant_outlined,
+                          color: AppTheme.primary, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        _tableNumber != null ? 'Table $_tableNumber' : 'Loading...',
+                        style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ]),
+                  ),
                 ],
               ]),
             ),
@@ -136,14 +166,10 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
           Container(
             width: 50, height: 50,
             decoration: BoxDecoration(
-                color: isSelected
-                    ? AppTheme.primary
-                    : const Color(0xFF1A1A1A),
+                color: isSelected ? AppTheme.primary : const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(13)),
             child: Icon(icon,
-                color: isSelected
-                    ? const Color(0xFF0A0A0A)
-                    : AppTheme.textSecondary,
+                color: isSelected ? const Color(0xFF0A0A0A) : AppTheme.textSecondary,
                 size: 22),
           ),
           const SizedBox(width: 16),
@@ -152,13 +178,10 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? AppTheme.primary
-                        : AppTheme.textPrimary)),
+                    color: isSelected ? AppTheme.primary : AppTheme.textPrimary)),
             const SizedBox(height: 3),
             Text(subtitle,
-                style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
           ]),
           const Spacer(),
           if (isSelected)
@@ -166,8 +189,7 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
               width: 20, height: 20,
               decoration: const BoxDecoration(
                   color: AppTheme.primary, shape: BoxShape.circle),
-              child: const Icon(Icons.check,
-                  color: Color(0xFF0A0A0A), size: 13),
+              child: const Icon(Icons.check, color: Color(0xFF0A0A0A), size: 13),
             ),
         ]),
       ),
@@ -194,8 +216,7 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppTheme.primary, width: 1.5)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
@@ -218,13 +239,11 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.arrow_back, size: 15),
-                  SizedBox(width: 6),
-                  Text('Back'),
-                ]),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.arrow_back, size: 15),
+              SizedBox(width: 6),
+              Text('Back'),
+            ]),
           ),
         ),
         const SizedBox(width: 12),
@@ -239,20 +258,16 @@ class _OrderTypeScreenState extends State<OrderTypeScreen> {
                     total: widget.total,
                     orderType: _orderType,
                     customerName: _name,
-                    tableNumber: _tableNumber.isEmpty
-                        ? null
-                        : int.tryParse(_tableNumber),
+                    tableNumber: _tableNumber,
                   ),
                 )),
             style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14)),
-            child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Next', style: TextStyle(fontSize: 15)),
-                  SizedBox(width: 6),
-                  Icon(Icons.arrow_forward, size: 15),
-                ]),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text('Next', style: TextStyle(fontSize: 15)),
+              SizedBox(width: 6),
+              Icon(Icons.arrow_forward, size: 15),
+            ]),
           ),
         ),
       ]),
