@@ -1,9 +1,10 @@
-import 'dart:convert';
-import 'dart:typed_data';
+
+
 import 'package:flutter/material.dart';
+
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import '../models/order.dart';
 import '../providers/cart_provider.dart';
 import '../theme/app_theme.dart';
@@ -30,43 +31,36 @@ class ReceiptScreen extends StatefulWidget {
 
 class _ReceiptScreenState extends State<ReceiptScreen> {
   bool _isPrinting = false;
-  BluetoothConnection? _connection;
+  
 
-  Future<bool> _connectPrinter() async {
-    try {
-      List<BluetoothDevice> devices =
-          await FlutterBluetoothSerial.instance.getBondedDevices();
+Future<bool> _connectPrinter() async {
+  try {
+    bool isConnected = await PrintBluetoothThermal.connectionStatus;
+    if (isConnected) return true;
 
-      BluetoothDevice? printer;
-      for (var device in devices) {
-        if (device.name != null && device.name!.contains('XP-460B')) {
-          printer = device;
-          break;
-        }
+    List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
+    BluetoothInfo? printer;
+
+    for (var device in devices) {
+      if (device.name.contains('XP-460B')) {
+        printer = device;
+        break;
       }
-
-      if (printer == null) return false;
-
-      if (_connection != null && _connection!.isConnected) {
-        await _connection!.close();
-        _connection = null;
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      _connection = await BluetoothConnection.toAddress(printer.address);
-      return _connection!.isConnected;
-    } catch (e) {
-      debugPrint('Connect error: $e');
-      return false;
     }
-  }
 
-  Future<void> _send(String data) async {
-    if (_connection == null || !_connection!.isConnected) return;
-    _connection!.output.add(Uint8List.fromList(utf8.encode(data)));
-    await _connection!.output.allSent;
-    await Future.delayed(const Duration(milliseconds: 100));
+    if (printer == null) return false;
+
+    return await PrintBluetoothThermal.connect(macPrinterAddress: printer.macAdress);
+  } catch (e) {
+    debugPrint('Connect error: $e');
+    return false;
   }
+}
+
+Future<void> _send(String data) async {
+  await PrintBluetoothThermal.writeBytes(data.codeUnits);
+  await Future.delayed(const Duration(milliseconds: 100));
+}
 
   Future<void> _printReceipt() async {
     setState(() => _isPrinting = true);
@@ -164,8 +158,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       await Future.delayed(const Duration(seconds: 6));
 
       // Disconnect
-      await _connection?.close();
-      _connection = null;
+await PrintBluetoothThermal.disconnect;
       // ── End print ─────────────────────────────────────
 
     } catch (e) {
@@ -201,11 +194,10 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _connection?.dispose();
-    super.dispose();
-  }
+@override
+void dispose() {
+  super.dispose();
+}
 
   @override
   Widget build(BuildContext context) {
