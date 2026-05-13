@@ -90,14 +90,9 @@ class CartScreen extends StatelessWidget {
             border: Border.all(color: AppTheme.border, width: 0.5),
           ),
           child: Row(children: [
-            Container(
-              width: 60, height: 60,
-              decoration: BoxDecoration(
-                  color: AppTheme.primaryLight,
-                  borderRadius: BorderRadius.circular(12)),
-              child: Center(
-                  child: Text(_emoji(item.menuItem.category),
-                      style: const TextStyle(fontSize: 28))),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _buildItemImage(item.menuItem.imageUrl, item.menuItem.category),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -133,6 +128,34 @@ class CartScreen extends StatelessWidget {
           ]),
         );
       },
+    );
+  }
+
+  Widget _buildItemImage(String imageUrl, String category) {
+    if (imageUrl.isNotEmpty && imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        width: 60, height: 60, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _emojiBox(category),
+      );
+    }
+    if (imageUrl.isNotEmpty) {
+      return Image.asset(
+        imageUrl,
+        width: 60, height: 60, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _emojiBox(category),
+      );
+    }
+    return _emojiBox(category);
+  }
+
+  Widget _emojiBox(String category) {
+    return Container(
+      width: 60, height: 60,
+      color: AppTheme.primaryLight,
+      child: Center(
+        child: Text(_emoji(category), style: const TextStyle(fontSize: 28)),
+      ),
     );
   }
 
