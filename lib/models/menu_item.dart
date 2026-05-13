@@ -46,7 +46,7 @@ class MenuItem {
 final List<MenuItem> sampleMenu = [
   const MenuItem(
     id: '1', name: 'Chicken Adobo', category: 'Mains',
-    price: 185, imageUrl: '', description: 'Classic Filipino adobo with tender chicken, slow-cooked in vinegar, soy sauce, and garlic.',
+    price: 185, imageUrl: 'assets/images/chicken-adobo.jpg', description: 'Classic Filipino adobo with tender chicken, slow-cooked in vinegar, soy sauce, and garlic.',
     tags: ['bestseller'],
   ),
   const MenuItem(

@@ -43,3 +43,4 @@ flutter:
 
   assets:
     - assets/dine_touch_co.jpg
+    - assets/images/        # ← 4 spaces before the dash 
