@@ -145,6 +145,15 @@ Future<void> _send(String data) async {
       await _send('TEXT 180,$yPos,"2",0,1,1,"P${widget.order.total.toStringAsFixed(0)}"\r\n');
       yPos += 45;
 
+      if (widget.order.paymentMethod == 'cash' && widget.order.amountTendered != null) {
+        await _send('TEXT 10,$yPos,"1",0,1,1,"TENDERED:"\r\n');
+        await _send('TEXT 180,$yPos,"1",0,1,1,"P${widget.order.amountTendered!.toStringAsFixed(0)}"\r\n');
+        yPos += 25;
+        await _send('TEXT 10,$yPos,"2",0,1,1,"CHANGE:"\r\n');
+        await _send('TEXT 180,$yPos,"2",0,1,1,"P${(widget.order.amountTendered! - widget.order.total).toStringAsFixed(0)}"\r\n');
+        yPos += 45;
+      }
+
       // Footer
       await _send('TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
       yPos += 25;
@@ -397,6 +406,40 @@ void dispose() {
                                           fontWeight: FontWeight.w800,
                                           color: AppTheme.primary)),
                                 ]),
+                            if (widget.order.paymentMethod == 'cash' && widget.order.amountTendered != null) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Amount Tendered',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: AppTheme.textSecondary)),
+                                  Text(
+                                      '₱${widget.order.amountTendered!.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: AppTheme.textSecondary)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Change',
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppTheme.textPrimary)),
+                                  Text(
+                                      '₱${(widget.order.amountTendered! - widget.order.total).toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppTheme.success)),
+                                ],
+                              ),
+                            ],
                           ]),
                         ),
                       ]),

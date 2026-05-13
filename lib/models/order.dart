@@ -32,6 +32,8 @@ class Order {
   final double total;
   OrderStatus status;
   final DateTime createdAt;
+  final String? paymentMethod;
+  final double? amountTendered;
 
   Order({
     required this.id,
@@ -39,6 +41,8 @@ class Order {
     required this.items,
     required this.total,
     this.status = OrderStatus.received,
+    this.paymentMethod,
+    this.amountTendered,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -58,5 +62,7 @@ class Order {
         'total': total,
         'status': status.name,
         'created_at': createdAt.toIso8601String(),
+        'payment_method': paymentMethod,
+        'amount_tendered': amountTendered,
       };
 }

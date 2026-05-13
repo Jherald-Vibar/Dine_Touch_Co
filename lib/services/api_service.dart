@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 final _supabase = Supabase.instance.client;
 
@@ -57,10 +58,11 @@ class ApiService {
   static Future<Map<String, dynamic>> placeOrder({
     required List<Map<String, dynamic>> items,
     String? notes,
-    // ── NEW: accept all fields from PaymentScreen ──
     String? customerName,
     String? orderType,
     int? tableNumber,
+    String? paymentMethod,
+    double? amountTendered,
   }) async {
     final restaurantId = await getRestaurantId();
 
@@ -84,7 +86,19 @@ class ApiService {
       (sum, i) => sum + (i['unit_price'] as num) * (i['quantity'] as num),
     );
 
-    // Create order — now includes customer_name, order_type, table_id
+    // Encode payment details into notes if amountTendered is provided
+    String resolvedNotes = notes ?? '';
+    if (amountTendered != null) {
+      final paymentData = {
+        'amount_tendered': amountTendered,
+        'payment_method': paymentMethod,
+      };
+      resolvedNotes = resolvedNotes.isEmpty 
+          ? jsonEncode(paymentData) 
+          : '$resolvedNotes | ${jsonEncode(paymentData)}';
+    }
+
+    // Create order — now includes customer_name, order_type, table_id, payment_method
     final orderRows = await _supabase
         .from('orders')
         .insert({
@@ -93,9 +107,10 @@ class ApiService {
           'table_number': resolvedTableNumber,
           'customer_name': customerName ?? '',
           'order_type': orderType ?? 'dine_in',
-          'notes': notes ?? '',
+          'notes': resolvedNotes,
           'subtotal': total,
           'total_amount': total,
+          'payment_method': paymentMethod,
         })
         .select();
 

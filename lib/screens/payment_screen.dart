@@ -26,6 +26,8 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   String _paymentMethod = 'cash';
   bool _isPlacing = false;
+  final _amountController = TextEditingController();
+  final _refController = TextEditingController();
 
   final _methods = [
     {
@@ -36,19 +38,31 @@ class _PaymentScreenState extends State<PaymentScreen> {
     },
     {
       'value': 'card',
-      'label': 'Card / Swipe',
-      'subtitle': 'Swipe / Tap terminal',
+      'label': 'Credit / Debit Card',
+      'subtitle': 'Enter card details',
       'icon': Icons.credit_card,
     },
     {
       'value': 'qr',
-      'label': 'Online / QR',
-      'subtitle': 'GCash · GoTyme · Stripe',
-      'icon': Icons.qr_code_scanner_outlined,
+      'label': 'GCash / E-wallet',
+      'subtitle': 'GCash · Maya',
+      'icon': Icons.account_balance_wallet_outlined,
     },
   ];
 
   Future<void> _placeOrder() async {
+    final amountTendered = _paymentMethod == 'cash'
+        ? double.tryParse(_amountController.text)
+        : widget.total;
+
+    if (_paymentMethod == 'cash' && (amountTendered == null || amountTendered < widget.total)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Invalid amount tendered'),
+        backgroundColor: Colors.red.shade800,
+      ));
+      return;
+    }
+
     setState(() => _isPlacing = true);
     try {
       final items = widget.cartItems
@@ -61,15 +75,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
               })
           .toList();
 
-      // ── FIX: pass customerName, orderType, tableNumber to placeOrder ──
       final result = await ApiService.placeOrder(
         items: items,
         customerName: widget.customerName,
         orderType: widget.orderType,
         tableNumber: widget.tableNumber,
+        paymentMethod: _paymentMethod,
+        amountTendered: amountTendered,
       );
 
-      // Use the table number from widget first, fall back to session
       final tableNumber =
           widget.tableNumber ?? await ApiService.getTableNumber();
 
@@ -78,6 +92,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         tableNumber: tableNumber,
         items: widget.cartItems,
         total: widget.total,
+        paymentMethod: _paymentMethod,
+        amountTendered: amountTendered,
       );
 
       if (mounted) {
@@ -103,12 +119,152 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  void _showQrModal() {
-    showModalBottomSheet(
+  void _showQrModal() async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _QrPaymentModal(total: widget.total),
+    );
+    _placeOrder();
+  }
+
+  void _showCardDetailsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF111111),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Enter Card Details',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 20),
+            TextField(
+              style: const TextStyle(color: Colors.white),
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Card Number',
+                labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.datetime,
+                    decoration: InputDecoration(
+                      labelText: 'Expiry (MM/YY)',
+                      labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'CVV',
+                      labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showOtpModal();
+                },
+                child: const Text('Next'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOtpModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF111111),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Enter OTP',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            const Text('A simulated OTP has been sent to your phone.',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+            const SizedBox(height: 20),
+            TextField(
+              style: const TextStyle(color: Colors.white),
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'OTP',
+                labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _placeOrder();
+                },
+                child: const Text('Verify & Done'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -157,36 +313,92 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ]),
                 ),
 
-                if (_paymentMethod == 'qr') ...[
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _showQrModal,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryLight,
+                const SizedBox(height: 16),
+                if (_paymentMethod == 'cash') ...[
+                  TextField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Amount Tendered',
+                      labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                      prefixText: '₱',
+                      prefixStyle: const TextStyle(color: Colors.white),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AppTheme.primary.withOpacity(0.4),
-                            width: 1.2),
+                        borderSide: const BorderSide(color: AppTheme.border),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppTheme.primary),
+                      ),
+                    ),
+                    onChanged: (val) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  if (double.tryParse(_amountController.text) != null &&
+                      double.parse(_amountController.text) >= widget.total)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.success.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.qr_code_2_rounded,
-                              color: AppTheme.primary, size: 20),
-                          SizedBox(width: 8),
-                          Text('View QR Codes',
-                              style: TextStyle(
-                                  color: AppTheme.primary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700)),
+                          const Text('Change', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                          Text(
+                            '₱${(double.parse(_amountController.text) - widget.total).toStringAsFixed(0)}',
+                            style: const TextStyle(color: AppTheme.success, fontSize: 18, fontWeight: FontWeight.w800),
+                          ),
                         ],
                       ),
                     ),
+                ] else if (_paymentMethod == 'qr') ...[
+                  TextField(
+                    controller: _refController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Reference Number',
+                      labelStyle: const TextStyle(color: AppTheme.textSecondary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppTheme.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppTheme.primary),
+                      ),
+                    ),
                   ),
-                ],
+                  const SizedBox(height: 12),
+                  if (_paymentMethod == 'qr')
+                    GestureDetector(
+                      onTap: _showQrModal,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.primary.withOpacity(0.4), width: 1.2),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.qr_code_2_rounded, color: AppTheme.primary, size: 20),
+                            SizedBox(width: 8),
+                            Text('View QR Codes',
+                                style: TextStyle(color: AppTheme.primary, fontSize: 14, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
               ],
             ),
           ),
@@ -261,6 +473,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       onTap: () {
         setState(() => _paymentMethod = method['value'] as String);
         if (isQr) _showQrModal();
+        if (method['value'] == 'card') _showCardDetailsModal();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -401,18 +614,11 @@ class _QrPaymentModalState extends State<_QrPaymentModal> {
       instructions: 'Open GCash → QR → Scan to pay',
     ),
     const _QrProvider(
-      name: 'GoTyme',
+      name: 'Maya',
       color: Color(0xFF00B87A),
-      icon: Icons.savings_outlined,
-      qrAsset: 'assets/qr/gotyme_qr.png',
-      instructions: 'Open GoTyme Bank → Pay → Scan QR',
-    ),
-    const _QrProvider(
-      name: 'Stripe',
-      color: Color(0xFF6772E5),
-      icon: Icons.credit_score_outlined,
-      qrAsset: 'assets/qr/stripe_qr.png',
-      instructions: 'Scan with your camera or banking app',
+      icon: Icons.account_balance_wallet_outlined,
+      qrAsset: 'assets/qr/maya_qr.png',
+      instructions: 'Open Maya → Scan QR',
     ),
   ];
 
