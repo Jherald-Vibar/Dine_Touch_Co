@@ -63,6 +63,8 @@ class ApiService {
     int? tableNumber,
     String? paymentMethod,
     double? amountTendered,
+    String? discountType,
+    double? discountAmount,
   }) async {
     final restaurantId = await getRestaurantId();
 
@@ -80,25 +82,32 @@ class ApiService {
         ? tableRows.first['id']
         : null;
 
-    // Compute total
-    final total = items.fold<double>(
+    // Compute total before discount
+    final rawTotal = items.fold<double>(
       0.0,
       (sum, i) => sum + (i['unit_price'] as num) * (i['quantity'] as num),
     );
 
-    // Encode payment details into notes if amountTendered is provided
+    // Apply discount to get final total
+    final total =
+        (rawTotal - (discountAmount ?? 0.0)).clamp(0.0, double.infinity);
+
+    // Encode payment + discount details into notes
     String resolvedNotes = notes ?? '';
-    if (amountTendered != null) {
-      final paymentData = {
-        'amount_tendered': amountTendered,
-        'payment_method': paymentMethod,
-      };
-      resolvedNotes = resolvedNotes.isEmpty 
-          ? jsonEncode(paymentData) 
+    final paymentData = <String, dynamic>{
+      if (amountTendered != null) 'amount_tendered': amountTendered,
+      if (paymentMethod != null) 'payment_method': paymentMethod,
+      if (discountType != null) 'discount_type': discountType,
+      if (discountAmount != null && discountAmount > 0)
+        'discount_amount': discountAmount,
+    };
+    if (paymentData.isNotEmpty) {
+      resolvedNotes = resolvedNotes.isEmpty
+          ? jsonEncode(paymentData)
           : '$resolvedNotes | ${jsonEncode(paymentData)}';
     }
 
-    // Create order — now includes customer_name, order_type, table_id, payment_method
+    // Create order
     final orderRows = await _supabase
         .from('orders')
         .insert({
@@ -107,10 +116,11 @@ class ApiService {
           'table_number': resolvedTableNumber,
           'customer_name': customerName ?? '',
           'order_type': orderType ?? 'dine_in',
-          'notes': resolvedNotes,
-          'subtotal': total,
-          'total_amount': total,
+          'notes': resolvedNotes, // ✅ discount info encoded here
+          'subtotal': rawTotal,
+          'total_amount': total,  // ✅ correct discounted final total
           'payment_method': paymentMethod,
+          // ✅ no discount_type column insert — stored in notes instead
         })
         .select();
 

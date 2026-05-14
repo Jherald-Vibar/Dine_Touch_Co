@@ -1,7 +1,4 @@
-
-
 import 'package:flutter/material.dart';
-
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
@@ -16,6 +13,7 @@ class ReceiptScreen extends StatefulWidget {
   final String orderType;
   final String paymentMethod;
   final String customerName;
+  final String? orderNotes; // ← ADDED
 
   const ReceiptScreen({
     super.key,
@@ -23,6 +21,7 @@ class ReceiptScreen extends StatefulWidget {
     required this.orderType,
     required this.paymentMethod,
     required this.customerName,
+    this.orderNotes, // ← ADDED
   });
 
   @override
@@ -31,36 +30,37 @@ class ReceiptScreen extends StatefulWidget {
 
 class _ReceiptScreenState extends State<ReceiptScreen> {
   bool _isPrinting = false;
-  
 
-Future<bool> _connectPrinter() async {
-  try {
-    bool isConnected = await PrintBluetoothThermal.connectionStatus;
-    if (isConnected) return true;
+  Future<bool> _connectPrinter() async {
+    try {
+      bool isConnected = await PrintBluetoothThermal.connectionStatus;
+      if (isConnected) return true;
 
-    List<BluetoothInfo> devices = await PrintBluetoothThermal.pairedBluetooths;
-    BluetoothInfo? printer;
+      List<BluetoothInfo> devices =
+          await PrintBluetoothThermal.pairedBluetooths;
+      BluetoothInfo? printer;
 
-    for (var device in devices) {
-      if (device.name.contains('XP-460B')) {
-        printer = device;
-        break;
+      for (var device in devices) {
+        if (device.name.contains('XP-460B')) {
+          printer = device;
+          break;
+        }
       }
+
+      if (printer == null) return false;
+
+      return await PrintBluetoothThermal.connect(
+          macPrinterAddress: printer.macAdress);
+    } catch (e) {
+      debugPrint('Connect error: $e');
+      return false;
     }
-
-    if (printer == null) return false;
-
-    return await PrintBluetoothThermal.connect(macPrinterAddress: printer.macAdress);
-  } catch (e) {
-    debugPrint('Connect error: $e');
-    return false;
   }
-}
 
-Future<void> _send(String data) async {
-  await PrintBluetoothThermal.writeBytes(data.codeUnits);
-  await Future.delayed(const Duration(milliseconds: 100));
-}
+  Future<void> _send(String data) async {
+    await PrintBluetoothThermal.writeBytes(data.codeUnits);
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
 
   Future<void> _printReceipt() async {
     setState(() => _isPrinting = true);
@@ -71,7 +71,8 @@ Future<void> _send(String data) async {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('XP-460B not found. Make sure it is ON and paired.'),
+            content:
+                Text('XP-460B not found. Make sure it is ON and paired.'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
           ),
@@ -80,7 +81,6 @@ Future<void> _send(String data) async {
         return;
       }
 
-      // ── Receipt data ──────────────────────────────────
       final shortId = widget.order.id.substring(0, 8).toUpperCase();
       final now = DateTime.now();
       final dateStr =
@@ -90,32 +90,50 @@ Future<void> _send(String data) async {
       final payment = _paymentLabel(widget.paymentMethod);
       final tableNo = widget.order.tableNumber;
       final itemCount = widget.order.items.length;
+      final bool hasNotes =
+          widget.orderNotes != null && widget.orderNotes!.isNotEmpty;
+      final bool hasCash = widget.order.paymentMethod == 'cash' &&
+          widget.order.amountTendered != null;
+      final bool hasCustomer = widget.customerName.isNotEmpty;
 
-      // Fixed base height + 5mm per item for longer orders
-      final double labelHeightMm = 100.0 + (itemCount * 5.0);
+      // ── Height calculation (all values in mm, 8 dots ≈ 1 mm on 203dpi) ──
+      // Each dot row below is 25–30 dots tall ≈ ~3.5 mm per row.
+      // Fixed sections (header + order ID + dividers + footer):  ~60 mm
+      // Customer name row (if present):                          ~3.5 mm
+      // Notes row (if present):                                  ~3.5 mm
+      // Cash rows – tendered + change (if present):              ~7.0 mm
+      // Per item row:                                            ~4.0 mm
+      // Extra bottom padding to avoid cut-off:                   ~10 mm
+      double labelHeightMm = 60.0;
+      if (hasCustomer) labelHeightMm += 3.5;
+      if (hasNotes) labelHeightMm += 7.0; // divider + note line
+      labelHeightMm += itemCount * 4.0;
+      if (hasCash) labelHeightMm += 7.0;
+      labelHeightMm += 10.0; // bottom safety margin
 
-      // Top padding in dots (40 dots = 5mm) so content isn't cut at the top
       const int topPad = 40;
 
-      // ── TSPL commands ─────────────────────────────────
       await _send('SIZE 40 mm, ${labelHeightMm.toStringAsFixed(1)} mm\r\n');
       await _send('GAP 0 mm, 0 mm\r\n');
-      await _send('DIRECTION 1\r\n'); // 1 = correct orientation for XP-460B
+      await _send('DIRECTION 1\r\n');
       await _send('CLS\r\n');
 
       // Header
       await _send('TEXT 10,${topPad + 0},"3",0,1,1,"DINE TOUCH CO."\r\n');
       await _send('TEXT 10,${topPad + 40},"1",0,1,1,"$dateStr"\r\n');
-      await _send('TEXT 10,${topPad + 65},"1",0,1,1,"------------------------"\r\n');
+      await _send(
+          'TEXT 10,${topPad + 65},"1",0,1,1,"------------------------"\r\n');
 
       // Order ID
       await _send('TEXT 10,${topPad + 90},"2",0,1,1,"ORD-$shortId"\r\n');
-      await _send('TEXT 10,${topPad + 120},"1",0,1,1,"------------------------"\r\n');
+      await _send(
+          'TEXT 10,${topPad + 120},"1",0,1,1,"------------------------"\r\n');
 
       int yPos = topPad + 145;
 
-      if (widget.customerName.isNotEmpty) {
-        await _send('TEXT 10,$yPos,"1",0,1,1,"Customer: ${widget.customerName}"\r\n');
+      if (hasCustomer) {
+        await _send(
+            'TEXT 10,$yPos,"1",0,1,1,"Customer: ${widget.customerName}"\r\n');
         yPos += 25;
       }
 
@@ -125,10 +143,26 @@ Future<void> _send(String data) async {
       yPos += 25;
       await _send('TEXT 10,$yPos,"1",0,1,1,"Payment: $payment"\r\n');
       yPos += 25;
-      await _send('TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
+
+      // ── Order notes ───────────────────────────────────────────────────────
+      if (hasNotes) {
+        await _send(
+            'TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
+        yPos += 25;
+        // Truncate to 38 chars so it fits the 40mm label width
+        final note = widget.orderNotes!.length > 38
+            ? '${widget.orderNotes!.substring(0, 35)}...'
+            : widget.orderNotes!;
+        await _send('TEXT 10,$yPos,"1",0,1,1,"Note: $note"\r\n');
+        yPos += 25;
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      await _send(
+          'TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
       yPos += 30;
 
-      // Order items
+      // Items
       for (var item in widget.order.items) {
         final name = item.menuItem.name;
         final qty = item.quantity;
@@ -139,37 +173,39 @@ Future<void> _send(String data) async {
       }
 
       // Total
-      await _send('TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
+      await _send(
+          'TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
       yPos += 25;
       await _send('TEXT 10,$yPos,"2",0,1,1,"TOTAL:"\r\n');
-      await _send('TEXT 180,$yPos,"2",0,1,1,"P${widget.order.total.toStringAsFixed(0)}"\r\n');
+      await _send(
+          'TEXT 180,$yPos,"2",0,1,1,"P${widget.order.total.toStringAsFixed(0)}"\r\n');
       yPos += 45;
 
-      if (widget.order.paymentMethod == 'cash' && widget.order.amountTendered != null) {
+      if (hasCash) {
         await _send('TEXT 10,$yPos,"1",0,1,1,"TENDERED:"\r\n');
-        await _send('TEXT 180,$yPos,"1",0,1,1,"P${widget.order.amountTendered!.toStringAsFixed(0)}"\r\n');
+        await _send(
+            'TEXT 180,$yPos,"1",0,1,1,"P${widget.order.amountTendered!.toStringAsFixed(0)}"\r\n');
         yPos += 25;
         await _send('TEXT 10,$yPos,"2",0,1,1,"CHANGE:"\r\n');
-        await _send('TEXT 180,$yPos,"2",0,1,1,"P${(widget.order.amountTendered! - widget.order.total).toStringAsFixed(0)}"\r\n');
+        await _send(
+            'TEXT 180,$yPos,"2",0,1,1,"P${(widget.order.amountTendered! - widget.order.total).toStringAsFixed(0)}"\r\n');
         yPos += 45;
       }
 
       // Footer
-      await _send('TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
+      await _send(
+          'TEXT 10,$yPos,"1",0,1,1,"------------------------"\r\n');
       yPos += 25;
-      await _send('TEXT 10,$yPos,"1",0,1,1,"Thank you for dining with us!"\r\n');
+      await _send(
+          'TEXT 10,$yPos,"1",0,1,1,"Thank you for dining with us!"\r\n');
       yPos += 25;
       await _send('TEXT 10,$yPos,"1",0,1,1,"Please come again :)"\r\n');
 
-      // Print then EOP triggers Cut Per Page action (feeds paper fully out)
       await _send('PRINT 1,1\r\n');
       await _send('EOP\r\n');
       await Future.delayed(const Duration(seconds: 6));
 
-      // Disconnect
-await PrintBluetoothThermal.disconnect;
-      // ── End print ─────────────────────────────────────
-
+      await PrintBluetoothThermal.disconnect;
     } catch (e) {
       debugPrint('Print error: $e');
       if (!mounted) return;
@@ -184,7 +220,6 @@ await PrintBluetoothThermal.disconnect;
       return;
     }
 
-    // Navigate after successful print
     if (!mounted) return;
     context.read<CartProvider>().clear();
     Navigator.pushAndRemoveUntil(
@@ -203,10 +238,10 @@ await PrintBluetoothThermal.disconnect;
     );
   }
 
-@override
-void dispose() {
-  super.dispose();
-}
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +251,8 @@ void dispose() {
         '${_month(now.month)} ${now.day}, ${now.year} · ${_time(now)}';
     final trackingUrl =
         'https://beamish-buttercream-d2f4a8.netlify.app/track/${widget.order.id}';
+    final bool hasNotes =
+        widget.orderNotes != null && widget.orderNotes!.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -347,6 +384,57 @@ void dispose() {
                                       value: _paymentLabel(
                                           widget.paymentMethod))),
                             ]),
+
+                            // ── Special Instructions on screen receipt ────
+                            if (hasNotes) ...[
+                              const SizedBox(height: 16),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF161616),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: AppTheme.border, width: 0.5),
+                                ),
+                                child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Icon(Icons.edit_note_rounded,
+                                          size: 14,
+                                          color: AppTheme.textSecondary),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                  'Special Instructions',
+                                                  style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: AppTheme
+                                                          .textSecondary,
+                                                      letterSpacing: 0.3)),
+                                              const SizedBox(height: 3),
+                                              Text(widget.orderNotes!,
+                                                  style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: AppTheme
+                                                          .textPrimary,
+                                                      fontStyle:
+                                                          FontStyle.italic)),
+                                            ]),
+                                      ),
+                                    ]),
+                              ),
+                            ],
+                            // ─────────────────────────────────────────────
+
                             const SizedBox(height: 18),
                             ...widget.order.items.map((item) => Padding(
                                   padding:
@@ -406,10 +494,12 @@ void dispose() {
                                           fontWeight: FontWeight.w800,
                                           color: AppTheme.primary)),
                                 ]),
-                            if (widget.order.paymentMethod == 'cash' && widget.order.amountTendered != null) ...[
+                            if (widget.order.paymentMethod == 'cash' &&
+                                widget.order.amountTendered != null) ...[
                               const SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text('Amount Tendered',
                                       style: TextStyle(
@@ -424,7 +514,8 @@ void dispose() {
                               ),
                               const SizedBox(height: 4),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text('Change',
                                       style: TextStyle(
@@ -481,7 +572,8 @@ void dispose() {
                                 width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                  color: AppTheme.primary.withOpacity(0.12),
+                                  color:
+                                      AppTheme.primary.withOpacity(0.12),
                                   blurRadius: 20)
                             ],
                           ),
@@ -535,36 +627,40 @@ void dispose() {
                 border: Border(
                     top: BorderSide(color: AppTheme.border, width: 0.5)),
               ),
-child: Column(mainAxisSize: MainAxisSize.min, children: [
-  SizedBox(
-    width: double.infinity,
-    child: ElevatedButton.icon(
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TrackerScreen(
-            orderId: widget.order.id,
-            shortId: widget.order.id.substring(0, 8).toUpperCase(),
-          ),
-        ),
-      ),
-      icon: const Icon(Icons.track_changes_outlined, size: 18),
-      label: const Text('Track My Order', style: TextStyle(fontSize: 15)),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        backgroundColor: const Color(0xFF1A1A1A),
-        foregroundColor: AppTheme.primary,
-        side: const BorderSide(color: AppTheme.primary, width: 1.5),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-  ),
-  const SizedBox(height: 10),
-  SizedBox(
-    width: double.infinity,
-    child: ElevatedButton.icon(
-      onPressed: _isPrinting ? null : _printReceipt,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TrackerScreen(
+                          orderId: widget.order.id,
+                          shortId: widget.order.id
+                              .substring(0, 8)
+                              .toUpperCase(),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.track_changes_outlined, size: 18),
+                    label: const Text('Track My Order',
+                        style: TextStyle(fontSize: 15)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      backgroundColor: const Color(0xFF1A1A1A),
+                      foregroundColor: AppTheme.primary,
+                      side: const BorderSide(
+                          color: AppTheme.primary, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isPrinting ? null : _printReceipt,
                     icon: _isPrinting
                         ? const SizedBox(
                             width: 18,
@@ -612,23 +708,31 @@ child: Column(mainAxisSize: MainAxisSize.min, children: [
 
   String _paymentLabel(String method) {
     switch (method) {
-      case 'cash': return 'Cash';
-      case 'card': return 'Card';
-      case 'qr':   return 'Online/QR';
-      default:     return method;
+      case 'cash':
+        return 'Cash';
+      case 'card':
+        return 'Card';
+      case 'qr':
+        return 'Online/QR';
+      default:
+        return method;
     }
   }
 
   String _month(int m) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
     return months[m - 1];
   }
 
   String _time(DateTime dt) {
     final h = dt.hour > 12
         ? dt.hour - 12
-        : dt.hour == 0 ? 12 : dt.hour;
+        : dt.hour == 0
+            ? 12
+            : dt.hour;
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m ${dt.hour >= 12 ? 'PM' : 'AM'}';
   }
@@ -649,8 +753,8 @@ class _InfoBox extends StatelessWidget {
       ),
       child: Column(children: [
         Text(label,
-            style: const TextStyle(
-                fontSize: 11, color: AppTheme.textHint)),
+            style:
+                const TextStyle(fontSize: 11, color: AppTheme.textHint)),
         const SizedBox(height: 4),
         Text(value,
             style: const TextStyle(

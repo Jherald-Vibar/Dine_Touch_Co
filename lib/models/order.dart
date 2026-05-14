@@ -1,4 +1,5 @@
 import 'menu_item.dart';
+import '../screens/payment_screen.dart';
 
 class CartItem {
   final MenuItem menuItem;
@@ -34,6 +35,7 @@ class Order {
   final DateTime createdAt;
   final String? paymentMethod;
   final double? amountTendered;
+  final DiscountInfo? discountInfo;
 
   Order({
     required this.id,
@@ -43,6 +45,7 @@ class Order {
     this.status = OrderStatus.received,
     this.paymentMethod,
     this.amountTendered,
+    this.discountInfo,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -64,5 +67,11 @@ class Order {
         'created_at': createdAt.toIso8601String(),
         'payment_method': paymentMethod,
         'amount_tendered': amountTendered,
+        if (discountInfo != null) ...{
+          'discount_type': discountInfo!.type,
+          'discount_label': discountInfo!.label,
+          'total': discountInfo!.amount,
+          'vat_exempt': discountInfo!.vatExempt,
+        },
       };
 }
