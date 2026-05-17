@@ -24,6 +24,48 @@ bool _validateAdmin(String username, String password) {
       _hashPassword(password) == _hashPassword('dine12345678');
 }
 
+// ─── Orientation helpers ─────────────────────────────────────────────────────
+//
+//  ┌──────────────────────────────────────┬───────────┬───────────┐
+//  │ Screen                               │ Mobile    │ Tablet    │
+//  ├──────────────────────────────────────┼───────────┼───────────┤
+//  │ AppLauncher                          │ Portrait  │ Landscape │
+//  │ Customer flow (Menu / Cart /         │ Portrait  │ Portrait  │
+//  │   OrderType / Payment / Receipt /    │           │           │
+//  │   Tracker)                           │           │           │
+//  │ KitchenScreen                        │ Landscape │ Landscape │
+//  └──────────────────────────────────────┴───────────┴───────────┘
+//
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool _isTablet() {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final shortestSide = view.physicalSize.shortestSide / view.devicePixelRatio;
+  return shortestSide >= 600;
+}
+
+/// AppLauncher: tablet → landscape, phone → portrait.
+Future<void> _setLauncherOrientation() =>
+    SystemChrome.setPreferredOrientations(
+      _isTablet()
+          ? [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
+          : [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+    );
+
+/// All customer-facing screens — always portrait on every device.
+Future<void> _setCustomerOrientation() =>
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+/// KitchenScreen — always landscape on every device.
+Future<void> _setKitchenOrientation() =>
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 void main() async {
@@ -31,10 +73,8 @@ void main() async {
 
   await SupabaseService.initialize();
 
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Launcher: tablet landscape / phone portrait
+  await _setLauncherOrientation();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
@@ -58,7 +98,7 @@ class DineTouchApp extends StatelessWidget {
       ),
     );
   }
-} //const AppLauncher(),
+}
 
 // ─────────────────────────────────────────────────────────────
 // Launcher — Kiosk mode only; Kitchen hidden behind admin login
@@ -97,22 +137,46 @@ class _AppLauncherState extends State<AppLauncher>
     super.dispose();
   }
 
+  // ── Kitchen: lock landscape → navigate to KitchenScreen ──────────
   void _onKitchenIconTap() {
     showDialog(
       context: context,
       barrierDismissible: true,
       barrierColor: Colors.black87,
       builder: (_) => _AdminLoginDialog(
-        onSuccess: () {
+        onSuccess: () async {
           Navigator.of(context).pop();
-          // Switch to landscape for kitchen
-          SystemChrome.setPreferredOrientations([
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ]);
+          await _setKitchenOrientation();
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             _fadeRoute(const KitchenScreen()),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Kiosk: lock portrait → navigate to MenuScreen ────────────────
+  void _onKioskTap() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black87,
+      builder: (_) => _TableNumberDialog(
+        onConfirm: (tableNumber) async {
+          await ApiService.saveSession(
+            restaurantId: await ApiService.getRestaurantId(),
+            tableNumber: tableNumber,
+            restaurantName: 'Dine Touch Co.',
+          );
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          await _setCustomerOrientation(); // portrait for entire customer flow
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            _fadeRoute(const MenuScreen()),
           );
         },
       ),
@@ -204,7 +268,7 @@ class _AppLauncherState extends State<AppLauncher>
 
                         const SizedBox(height: 36),
 
-                        // ── Kiosk card — fills width with side padding ──
+                        // ── Kiosk card ────────────────────────
                         Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: screenWidth * 0.08,
@@ -214,29 +278,7 @@ class _AppLauncherState extends State<AppLauncher>
                             title: 'Customer Kiosk',
                             subtitle: 'Browse menu & place orders',
                             accent: _gold,
-                            onTap: () {
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                barrierColor: Colors.black87,
-                                builder: (_) => _TableNumberDialog(
-                                  onConfirm: (tableNumber) async {
-                                    await ApiService.saveSession(
-                                      restaurantId: await ApiService.getRestaurantId(),
-                                      tableNumber: tableNumber,
-                                      restaurantName: 'Dine Touch Co.',
-                                    );
-                                    if (context.mounted) {
-                                      Navigator.of(context).pop();
-                                      Navigator.pushReplacement(
-                                        context,
-                                        _fadeRoute(const MenuScreen()),
-                                      );
-                                    }
-                                  },
-                                ),
-                              );
-                            },
+                            onTap: _onKioskTap,
                           ),
                         ),
 
@@ -709,7 +751,7 @@ class _ModeCardState extends State<_ModeCard>
           scale: 1.0 - (_hover.value * 0.02),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: double.infinity, // ← KEY FIX: fills the Padding constraint
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 28),
             decoration: BoxDecoration(
               color: _cardBg,
